@@ -76,6 +76,7 @@ class CommandPublisher : public rclcpp::Node
                 RT = data.rz;
                 A = (t_uint8)(data.buttons & (1 << 0));
                 LB = (t_uint8)((data.buttons & (1 << 4))/16);
+                // RB = (t_uint8)((data.buttons & (1 << 2))/4);
 
                 // Only enable motion when the QBot is being armed
                 if (LB == 1)
@@ -96,6 +97,11 @@ class CommandPublisher : public rclcpp::Node
 
                         };
 
+                        // // half speed
+                        // if (RB == 1) {
+                        //     throttle = 0.5 * throttle;
+                        // };
+
                     }
                 else
                 {
@@ -107,6 +113,10 @@ class CommandPublisher : public rclcpp::Node
                 twist.linear.x = throttle;
                 twist.angular.z = steering;
                 this->command_publisher_->publish(twist);
+
+                if (X == 1){
+                    break;
+                }
 
             }
 
