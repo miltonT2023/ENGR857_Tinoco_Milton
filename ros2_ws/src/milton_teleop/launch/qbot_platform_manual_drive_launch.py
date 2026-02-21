@@ -1,4 +1,7 @@
-# This is the launch file that starts up the basic QBot Platform nodes
+
+# Milton Drive Launch File
+
+# # This is the launch file that starts up the basic QBot Platform nodes
 
 import subprocess
 
@@ -9,6 +12,7 @@ from launch.event_handlers import (OnProcessExit, OnProcessStart)
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch.actions import Shutdown
 
 def exit_qbot_platform_driver_interface_cb(context):
     # We're using a callback function and wrap it in OpaqueFunction() to be
@@ -55,16 +59,17 @@ def generate_launch_description():
     #     )
 
     qbot_platform_driver_node = Node(
-            package='teleop',
+            package='milton_teleop',
             executable='qbot_platform_driver_interface',
             name='QBotPlatformDriver',
             parameters=[{'arm_robot': True}],
         )
 
     joystick_command_node = Node(
-        package = 'teleop',
+        package = 'milton_teleop',
         executable = 'command',
-        name = 'joysticCommands'
+        name = 'joysticCommands',
+        on_exit = Shutdown() # When the joystick_command_node exits, we want to shutdown the entire launch system, which would in turn trigger the OnProcessExit event handler of the qbot_platform_driver_interface node, and thus call the callback function to stop the driver model.
     )
 
     return LaunchDescription([
