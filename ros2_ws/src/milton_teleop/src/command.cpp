@@ -19,6 +19,7 @@
 
 using namespace std::chrono_literals;
 
+// Global joystick state cache updated on each poll cycle.
 bool node_running = false;
 // joystick inputs
 t_double LLA = 0.0;
@@ -65,7 +66,9 @@ class CommandPublisher : public rclcpp::Node
     {
 
 
+    // Publish vehicle velocity commands.
     command_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
+    // Publish LED color feedback for operator awareness.
     color_publisher_ = this->create_publisher<std_msgs::msg::ColorRGBA>("qbot_led_strip", 10);
     // try to connect to joystick
 	result = game_controller_open(controller_number, buffer_size, deadzone, saturation, auto_center,
@@ -80,11 +83,13 @@ class CommandPublisher : public rclcpp::Node
         if (result >= 0)
 	        {
 
+            // Keep polling until ROS requests shutdown or X is pressed.
             while (rclcpp::ok())
             {
                 std_msgs::msg::ColorRGBA color;
             
                 result = game_controller_poll(gamepad, &data, &is_new);
+             
                 LLA = -1*data.x;
                 RT = data.rz;
                 A = (t_uint8)(data.buttons & (1 << 0));
@@ -92,10 +97,12 @@ class CommandPublisher : public rclcpp::Node
                 RB = (t_uint8)((data.buttons & (1 << 5))/32);
                 X = (t_uint8)((data.buttons & (1 << 2))/4);
 
+                // X button exits polling loop and stops command publishing.
                 if (X == 1)
                 {
                     break;
                 }
+                
                 if (LB == 1)
                 {
                     if (RT == 0)
@@ -106,7 +113,7 @@ class CommandPublisher : public rclcpp::Node
                     {
                         throttle = 0.3 * (0.5 + 0.5 * RT);
                     };
-                      // half speed mode
+                    // Half-speed precision mode when RB is held.
                     if (RB == 1)
                     {
                         throttle = 0.3 * 0.5* (0.5 + 0.5 * RT);
@@ -118,15 +125,20 @@ class CommandPublisher : public rclcpp::Node
                     // reverse
                     if (A == 1)
                     {
+                        // A toggles reverse by flipping the sign.
                         throttle = -throttle;
                     }
                 }
                 else
                 {
+                    // Safety fallback if LB is released.
                     throttle = 0.0;
                     steering = 0.0;
                 }
                 
+                // LED scheme:
+                // green=forward, red=reverse, white=turn right,
+                // blue=turn left, yellow=idle.
                 if (throttle > 0) 
                 {
                     colors.r = 0; colors.g = 1; colors.b = 0; colors.a = 1;
@@ -152,6 +164,7 @@ class CommandPublisher : public rclcpp::Node
                 geometry_msgs::msg::Twist twist;
                 twist.linear.x = throttle;
                 twist.angular.z = steering;
+                // Send motion + LED feedback every poll cycle.
                 this->command_publisher_->publish(twist);
                 this->color_publisher_->publish(colors);
 
@@ -182,7 +195,7 @@ int main(int argc, char ** argv)
 {
 
 
-    // Node creation
+    // Initialize ROS 2, run node callbacks, then cleanly shutdown.
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<CommandPublisher>());
     rclcpp::shutdown();
